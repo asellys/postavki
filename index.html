@@ -335,7 +335,7 @@
         </div>
       </div>
       <div class="meta-row">
-        <span class="hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg>Дата и время берутся с вашего устройства</span>
+        <span class="hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg>Дата и время зафиксированы; изменяются только вручную</span>
         <button type="button" class="link-action" id="nowBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M20 12a8 8 0 1 0-2 5"/></svg>Установить текущее время</button>
       </div>
     </section>
@@ -414,7 +414,6 @@
       const $ = (id) => document.getElementById(id);
       const counts = Object.fromEntries(STRUCTURES.map(name => [name, 0]));
       let currentType = 'ВС';
-      let manualDateTime = false;
       let toastTimer;
       let copyTimer;
       let history = [];
@@ -430,6 +429,8 @@
             recipient: $('recipient').value,
             status: $('deliveryStatus').value,
             fences: $('fencesCheckbox').checked,
+            date: $('dateInput').value,
+            time: $('timeInput').value,
             counts
           }));
         } catch { /* Просмотр и копирование работают даже при отключённом localStorage. */ }
@@ -469,7 +470,6 @@
         };
       }
       function recordCurrentReport() {
-        if (!manualDateTime) nowLocal();
         refresh();
         const snapshot = historySnapshot();
         if (!snapshot) return false;
@@ -535,7 +535,6 @@
         $('fencesCheckbox').checked = item.fences === true;
         $('dateInput').value = item.date;
         $('timeInput').value = item.time;
-        manualDateTime = true;
         STRUCTURES.forEach((name, i) => {
           counts[name] = numeric(item.counts[name]);
           $(`member-${i}`).value = counts[name];
@@ -656,7 +655,6 @@
         return legacyCopy(text);
       }
       async function copyReport() {
-        if (!manualDateTime) nowLocal();
         refresh();
         const report = $('resultText').value;
         if (!await writeClipboard(report)) {
@@ -683,7 +681,12 @@
         }
         makeMembers();
         syncType();
-        nowLocal();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(saved.date || '') && /^\d{2}:\d{2}$/.test(saved.time || '')) {
+          $('dateInput').value = saved.date;
+          $('timeInput').value = saved.time;
+        } else {
+          nowLocal();
+        }
         refresh();
         history = getHistory();
         renderHistory();
@@ -707,8 +710,8 @@
         $('recipient').addEventListener('change', refresh);
         $('deliveryStatus').addEventListener('change', refresh);
         $('fencesCheckbox').addEventListener('change', refresh);
-        ['dateInput','timeInput'].forEach(id => $(id).addEventListener('input', () => { manualDateTime = true; refresh(); }));
-        $('nowBtn').addEventListener('click', () => { manualDateTime = false; nowLocal(); refresh(); notify('Установлено текущее время'); });
+        ['dateInput','timeInput'].forEach(id => $(id).addEventListener('input', refresh));
+        $('nowBtn').addEventListener('click', () => { nowLocal(); refresh(); notify('Установлено текущее время'); });
         $('resetSessionBtn').addEventListener('click', () => {
           currentType = 'ВС';
           syncType();
@@ -716,7 +719,6 @@
           $('deliveryStatus').value = 'Довезли';
           $('fencesCheckbox').checked = true;
           STRUCTURES.forEach((name, i) => { counts[name] = 0; $(`member-${i}`).value = 0; });
-          manualDateTime = false;
           nowLocal();
           refresh();
           notify('Текущая сессия сброшена. История сохранена.');
@@ -743,8 +745,6 @@
           renderHistory();
           notify('История поставок очищена');
         });
-        // Пока дата и время не скорректированы вручную, они остаются актуальными.
-        setInterval(() => { if (!manualDateTime) { nowLocal(); refresh(); } }, 30000);
       }
       initialize();
     })();
